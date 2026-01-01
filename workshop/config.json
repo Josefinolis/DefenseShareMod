@@ -1,0 +1,12 @@
+{
+    "name": "Defense Share - TiS Addon",
+    "description": "Permite lanzar cartas de defensa sobre aliados en Together in Spire.\n\n[h1]Caracteristicas[/h1]\n[list]\n[*] Las cartas que otorgan Block pueden apuntar a companeros\n[*] Indicador visual [ALLY] en cartas compartibles\n[*] Compatible con cartas de otros mods\n[*] No modifica Together in Spire directamente\n[/list]\n\n[h1]Como usar[/h1]\n[olist]\n[*] Inicia una partida coop con Together in Spire\n[*] Al jugar una carta de defensa, haz click en un aliado\n[*] El bloqueo se aplicara al aliado seleccionado\n[*] Click derecho o ESC para cancelar\n[/olist]\n\n[h1]Requisitos[/h1]\n[list]\n[*] ModTheSpire\n[*] BaseMod\n[*] Together in Spire\n[/list]\n\n[h1]Cartas compatibles[/h1]\nTodas las cartas que otorguen Block: Defend, Shrug It Off, Glacier, Protect, y muchas mas.",
+    "tags": [
+        "Gameplay",
+        "Multiplayer",
+        "Quality of Life"
+    ],
+    "visibility": "public",
+    "content_folder": "content",
+    "preview_path": "preview.png"
+}

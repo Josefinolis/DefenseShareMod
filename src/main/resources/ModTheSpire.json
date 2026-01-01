@@ -1,0 +1,11 @@
+{
+    "modid": "DefenseShareMod",
+    "name": "Defense Share - TiS Addon",
+    "author_list": ["os_uis"],
+    "description": "Permite lanzar cartas de defensa sobre aliados en Together in Spire. Las cartas que otorgan Block ahora pueden apuntar a tus companeros de equipo.",
+    "version": "1.0.0",
+    "sts_version": "12-22-2020",
+    "mts_version": "3.23.0",
+    "dependencies": ["basemod"],
+    "optional_dependencies": ["togetherinspire"]
+}

@@ -1,0 +1,139 @@
+package defenseshare.patches;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.evacipated.cardcrawl.modthespire.lib.*;
+import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.characters.AbstractPlayer;
+import com.megacrit.cardcrawl.core.Settings;
+import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.helpers.FontHelper;
+import com.megacrit.cardcrawl.rooms.AbstractRoom;
+
+import defenseshare.DefenseShareMod;
+import defenseshare.util.AllyManager;
+import defenseshare.util.DefenseCardDetector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+/**
+ * Patches de renderizado para mostrar indicadores visuales
+ * cuando las cartas de defensa pueden ser compartidas con aliados
+ */
+public class RenderPatch {
+
+    private static final Logger logger = LogManager.getLogger(RenderPatch.class.getName());
+
+    // Colores para indicadores
+    private static final Color SHAREABLE_COLOR = new Color(0.3f, 0.7f, 1.0f, 0.8f);
+    private static final Color SELECTING_COLOR = new Color(0.2f, 1.0f, 0.4f, 0.9f);
+
+    /**
+     * Patch para renderizar indicadores en cartas de defensa compartibles
+     */
+    @SpirePatch(
+        clz = AbstractCard.class,
+        method = "render",
+        paramtypez = {SpriteBatch.class}
+    )
+    public static class CardRenderPatch {
+
+        @SpirePostfixPatch
+        public static void Postfix(AbstractCard __instance, SpriteBatch sb) {
+            // Solo renderizar si TiS está activo y estamos en combate
+            if (!DefenseShareMod.isTogetherInSpireLoaded() ||
+                AbstractDungeon.getCurrRoom() == null ||
+                AbstractDungeon.getCurrRoom().phase != AbstractRoom.RoomPhase.COMBAT) {
+                return;
+            }
+
+            // Verificar si la carta puede ser compartida
+            if (DefenseCardDetector.isDefenseCard(__instance) && AllyManager.hasAlliesAvailable()) {
+                // Verificar si la carta está siendo hovereada
+                if (__instance.hb.hovered) {
+                    renderShareIndicator(sb, __instance);
+                }
+            }
+        }
+
+        private static void renderShareIndicator(SpriteBatch sb, AbstractCard card) {
+            // Renderizar un pequeño indicador de que la carta puede compartirse
+            float x = card.current_x + (card.hb.width / 2) - (30 * Settings.scale);
+            float y = card.current_y + (card.hb.height / 2) + (10 * Settings.scale);
+
+            // Dibujar texto indicador
+            FontHelper.renderFontCentered(
+                sb,
+                FontHelper.cardDescFont_N,
+                "[ALLY]",
+                x,
+                y,
+                DefenseShareMod.isSelectingAlly() ? SELECTING_COLOR : SHAREABLE_COLOR
+            );
+        }
+    }
+
+    /**
+     * Patch para renderizar overlay sobre aliados seleccionables
+     */
+    @SpirePatch(
+        clz = AbstractRoom.class,
+        method = "render",
+        paramtypez = {SpriteBatch.class}
+    )
+    public static class RoomRenderPatch {
+
+        @SpirePostfixPatch
+        public static void Postfix(AbstractRoom __instance, SpriteBatch sb) {
+            // Renderizar indicadores sobre aliados cuando estamos seleccionando
+            if (DefenseShareMod.isSelectingAlly() && AllyManager.hasAlliesAvailable()) {
+                AllyManager.render(sb);
+
+                // Renderizar instrucciones
+                renderSelectionInstructions(sb);
+            }
+        }
+
+        private static void renderSelectionInstructions(SpriteBatch sb) {
+            float x = Settings.WIDTH / 2.0f;
+            float y = Settings.HEIGHT - (100 * Settings.scale);
+
+            FontHelper.renderFontCentered(
+                sb,
+                FontHelper.buttonLabelFont,
+                "Click en un aliado para compartir defensa (ESC para cancelar)",
+                x,
+                y,
+                Color.WHITE
+            );
+        }
+    }
+
+    /**
+     * Patch para mostrar tooltips de compartir defensa
+     */
+    @SpirePatch(
+        clz = AbstractCard.class,
+        method = "renderCardTip",
+        paramtypez = {SpriteBatch.class}
+    )
+    public static class CardTipRenderPatch {
+
+        @SpirePostfixPatch
+        public static void Postfix(AbstractCard __instance, SpriteBatch sb) {
+            if (!DefenseShareMod.isTogetherInSpireLoaded() ||
+                !DefenseCardDetector.isDefenseCard(__instance) ||
+                !AllyManager.hasAlliesAvailable()) {
+                return;
+            }
+
+            // Agregar tooltip adicional indicando que se puede compartir
+            // El tooltip aparece cuando el mouse está sobre la carta
+            if (__instance.hb.hovered) {
+                // El tooltip adicional se manejaría aquí
+                // Por simplicidad, el indicador [ALLY] en la carta es suficiente
+            }
+        }
+    }
+}
