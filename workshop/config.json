@@ -1,12 +1,12 @@
 {
-    "name": "Defense Share - TiS Addon",
-    "description": "Permite lanzar cartas de defensa sobre aliados en Together in Spire.\n\n[h1]Caracteristicas[/h1]\n[list]\n[*] Las cartas que otorgan Block pueden apuntar a companeros\n[*] Indicador visual [ALLY] en cartas compartibles\n[*] Compatible con cartas de otros mods\n[*] No modifica Together in Spire directamente\n[/list]\n\n[h1]Como usar[/h1]\n[olist]\n[*] Inicia una partida coop con Together in Spire\n[*] Al jugar una carta de defensa, haz click en un aliado\n[*] El bloqueo se aplicara al aliado seleccionado\n[*] Click derecho o ESC para cancelar\n[/olist]\n\n[h1]Requisitos[/h1]\n[list]\n[*] ModTheSpire\n[*] BaseMod\n[*] Together in Spire\n[/list]\n\n[h1]Cartas compatibles[/h1]\nTodas las cartas que otorguen Block: Defend, Shrug It Off, Glacier, Protect, y muchas mas.",
-    "tags": [
-        "Gameplay",
-        "Multiplayer",
-        "Quality of Life"
-    ],
-    "visibility": "public",
-    "content_folder": "content",
-    "preview_path": "preview.png"
+  "steamPublishedID": "3636967947",
+  "title": "Defense Share Plus - Together in Spire",
+  "description": "Permite compartir cartas de defensa con aliados en Together in Spire. Arrastra y suelta cartas de Block sobre tus companeros para darles defensa!\n\n[h1]Caracteristicas[/h1]\n[list]\n[*] Las cartas que otorgan Block pueden apuntar a companeros\n[*] Sistema de targeting intuitivo (arrastra y suelta)\n[*] Indicador visual [ALLY] en cartas compartibles\n[*] Compatible con cartas de otros mods\n[*] No modifica Together in Spire directamente\n[/list]\n\n[h1]Como usar[/h1]\n[olist]\n[*] Inicia una partida coop con Together in Spire\n[*] Las cartas de defensa mostraran el indicador [ALLY]\n[*] Arrastra la carta sobre un aliado (como con cartas de ataque)\n[*] Suelta la carta para darle defensa al aliado\n[*] O usala normalmente sobre ti mismo\n[/olist]\n\n[h1]Requisitos[/h1]\n[list]\n[*] ModTheSpire (3.23.0+)\n[*] BaseMod (5.50.0+)\n[*] Together in Spire\n[/list]\n\n[h1]Cartas compatibles[/h1]\nTodas las cartas que otorguen Block: Defend, Shrug It Off, Glacier, Protect, y muchas mas.\n\n[h1]Version 1.1[/h1]\nCorregido error NoSuchMethod - Compatible con mas versiones de Slay the Spire.",
+  "visibility": "public",
+  "changeNote": "Fixed NoSuchMethod error - improved compatibility",
+  "tags": [
+    "Gameplay",
+    "Multiplayer",
+    "Quality of Life"
+  ]
 }

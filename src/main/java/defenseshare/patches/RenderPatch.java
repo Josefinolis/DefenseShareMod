@@ -69,13 +69,13 @@ public class RenderPatch {
                 "[ALLY]",
                 x,
                 y,
-                DefenseShareMod.isSelectingAlly() ? SELECTING_COLOR : SHAREABLE_COLOR
+                SHAREABLE_COLOR
             );
         }
     }
 
     /**
-     * Patch para renderizar overlay sobre aliados seleccionables
+     * Patch para renderizar overlay sobre aliados cuando se tiene una carta de defensa seleccionada
      */
     @SpirePatch(
         clz = AbstractRoom.class,
@@ -86,12 +86,22 @@ public class RenderPatch {
 
         @SpirePostfixPatch
         public static void Postfix(AbstractRoom __instance, SpriteBatch sb) {
-            // Renderizar indicadores sobre aliados cuando estamos seleccionando
-            if (DefenseShareMod.isSelectingAlly() && AllyManager.hasAlliesAvailable()) {
-                AllyManager.render(sb);
+            // Solo renderizar si Together in Spire está activo
+            if (!DefenseShareMod.isTogetherInSpireLoaded() || !AllyManager.hasAlliesAvailable()) {
+                return;
+            }
 
-                // Renderizar instrucciones
-                renderSelectionInstructions(sb);
+            // Verificar si el jugador tiene una carta de defensa en la mano
+            // (El nuevo sistema de targeting hará que las cartas cambien a modo ENEMY)
+            if (AbstractDungeon.player != null && AbstractDungeon.player.hand != null) {
+                for (AbstractCard card : AbstractDungeon.player.hand.group) {
+                    if (DefenseCardDetector.isDefenseCard(card) && card.isGlowing) {
+                        // Renderizar highlight sobre aliados
+                        AllyManager.render(sb);
+                        renderSelectionInstructions(sb);
+                        break;
+                    }
+                }
             }
         }
 
@@ -102,7 +112,7 @@ public class RenderPatch {
             FontHelper.renderFontCentered(
                 sb,
                 FontHelper.buttonLabelFont,
-                "Click en un aliado para compartir defensa (ESC para cancelar)",
+                "Arrastra la carta sobre un aliado para compartir defensa",
                 x,
                 y,
                 Color.WHITE

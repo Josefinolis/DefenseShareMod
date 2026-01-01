@@ -230,10 +230,11 @@ public class AllyManager {
 
     /**
      * Actualiza la selección de aliado basada en input del ratón
+     * Retorna true si se seleccionó un aliado
      */
-    public static void updateAllySelection() {
+    public static boolean updateAllySelection() {
         if (!isSelecting || availableAllies.isEmpty()) {
-            return;
+            return false;
         }
 
         hoveredAlly = null;
@@ -265,13 +266,19 @@ public class AllyManager {
         if (hoveredAlly != null && InputHelper.justClickedLeft) {
             selectedAlly = hoveredAlly;
             logger.info("Aliado seleccionado: " + selectedAlly.name);
+            InputHelper.justClickedLeft = false; // Consumir el click
+            return true;
         }
 
         // Click derecho o Escape para cancelar
         if (InputHelper.justClickedRight || Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.ESCAPE)) {
             logger.info("Selección de aliado cancelada");
             endAllySelection();
+            selectedAlly = null;
+            return false;
         }
+
+        return false;
     }
 
     /**

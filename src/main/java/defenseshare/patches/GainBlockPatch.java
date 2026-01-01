@@ -50,25 +50,39 @@ public class GainBlockPatch {
         @SpirePostfixPatch
         public static void Postfix(GainBlockAction __instance, AbstractCreature target, int amount) {
             // Si hay un aliado objetivo establecido y el target es el jugador actual
-            if (targetAllyForNextBlock != null &&
-                target == AbstractDungeon.player &&
-                DefenseShareMod.isTogetherInSpireLoaded()) {
+            if (targetAllyForNextBlock != null && DefenseShareMod.isTogetherInSpireLoaded()) {
 
-                try {
-                    // Usar reflection para cambiar el target de la acción
-                    java.lang.reflect.Field targetField = GainBlockAction.class.getDeclaredField("target");
-                    targetField.setAccessible(true);
-                    targetField.set(__instance, targetAllyForNextBlock);
+                logger.info("GainBlockAction detectado - Target original: " +
+                           (target != null ? target.name : "null") +
+                           ", Amount: " + amount +
+                           ", Aliado objetivo: " + targetAllyForNextBlock.name);
 
-                    logger.info("GainBlockAction redirigido a aliado: " + targetAllyForNextBlock.name +
-                               " por " + amount + " de block");
+                // Redirigir solo si el target es el jugador actual
+                if (target == AbstractDungeon.player) {
+                    try {
+                        // Usar reflection para cambiar el target de la acción
+                        java.lang.reflect.Field targetField = GainBlockAction.class.getDeclaredField("target");
+                        targetField.setAccessible(true);
+                        targetField.set(__instance, targetAllyForNextBlock);
 
-                } catch (Exception e) {
-                    logger.error("Error redirigiendo GainBlockAction: " + e.getMessage());
+                        logger.info("✓ Block redirigido exitosamente a " + targetAllyForNextBlock.name);
+
+                    } catch (NoSuchFieldException e) {
+                        logger.error("Error: Campo 'target' no encontrado en GainBlockAction");
+                        logger.error("Campos disponibles: ");
+                        for (java.lang.reflect.Field f : GainBlockAction.class.getDeclaredFields()) {
+                            logger.error("  - " + f.getName());
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error redirigiendo GainBlockAction: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+
+                    // Limpiar el aliado objetivo después de usarlo
+                    clearTargetAlly();
+                } else {
+                    logger.info("Target no es el jugador actual, no se redirige");
                 }
-
-                // Limpiar el aliado objetivo después de usarlo
-                clearTargetAlly();
             }
         }
     }
@@ -85,23 +99,38 @@ public class GainBlockPatch {
 
         @SpirePostfixPatch
         public static void Postfix(GainBlockAction __instance, AbstractCreature target, AbstractCreature source, int amount) {
-            if (targetAllyForNextBlock != null &&
-                target == AbstractDungeon.player &&
-                DefenseShareMod.isTogetherInSpireLoaded()) {
+            if (targetAllyForNextBlock != null && DefenseShareMod.isTogetherInSpireLoaded()) {
 
-                try {
-                    java.lang.reflect.Field targetField = GainBlockAction.class.getDeclaredField("target");
-                    targetField.setAccessible(true);
-                    targetField.set(__instance, targetAllyForNextBlock);
+                logger.info("GainBlockAction (3-param) detectado - Target: " +
+                           (target != null ? target.name : "null") +
+                           ", Source: " + (source != null ? source.name : "null") +
+                           ", Amount: " + amount +
+                           ", Aliado objetivo: " + targetAllyForNextBlock.name);
 
-                    logger.info("GainBlockAction (3-param) redirigido a aliado: " +
-                               targetAllyForNextBlock.name + " por " + amount + " de block");
+                // Redirigir solo si el target es el jugador actual
+                if (target == AbstractDungeon.player) {
+                    try {
+                        java.lang.reflect.Field targetField = GainBlockAction.class.getDeclaredField("target");
+                        targetField.setAccessible(true);
+                        targetField.set(__instance, targetAllyForNextBlock);
 
-                } catch (Exception e) {
-                    logger.error("Error redirigiendo GainBlockAction (3-param): " + e.getMessage());
+                        logger.info("✓ Block (3-param) redirigido exitosamente a " + targetAllyForNextBlock.name);
+
+                    } catch (NoSuchFieldException e) {
+                        logger.error("Error: Campo 'target' no encontrado en GainBlockAction (3-param)");
+                        logger.error("Campos disponibles: ");
+                        for (java.lang.reflect.Field f : GainBlockAction.class.getDeclaredFields()) {
+                            logger.error("  - " + f.getName());
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error redirigiendo GainBlockAction (3-param): " + e.getMessage());
+                        e.printStackTrace();
+                    }
+
+                    clearTargetAlly();
+                } else {
+                    logger.info("Target no es el jugador actual, no se redirige (3-param)");
                 }
-
-                clearTargetAlly();
             }
         }
     }
