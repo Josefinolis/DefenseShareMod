@@ -31,8 +31,7 @@ public class CardTargetingPatch {
     private static final Map<AbstractCard, AbstractCard.CardTarget> originalTargets = new HashMap<>();
 
     /**
-     * Patch para modificar dinámicamente el target de cartas de defensa
-     * Esto permite que requieran selección de objetivo en lugar de aplicarse automáticamente
+     * Patch para cambiar el target de cartas de defensa cuando hay aliados disponibles
      */
     @SpirePatch(
         clz = AbstractCard.class,
@@ -46,26 +45,76 @@ public class CardTargetingPatch {
                 return;
             }
 
-            // Solo modificar cartas de defensa que están en la mano del jugador
+            // Verificar si estamos en combate
+            if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+                return;
+            }
+
+            // Solo modificar cartas de defensa que están en la mano
             if (DefenseCardDetector.isDefenseCard(__instance) &&
                 AllyManager.hasAlliesAvailable() &&
-                AbstractDungeon.player != null &&
-                AbstractDungeon.player.hand != null &&
                 AbstractDungeon.player.hand.contains(__instance)) {
 
-                // Guardar el target original si no lo hemos hecho
+                // Guardar el target original
                 if (!originalTargets.containsKey(__instance)) {
                     originalTargets.put(__instance, __instance.target);
+                    logger.debug("Guardando target original de " + __instance.name + ": " + __instance.target);
                 }
 
-                // Cambiar a modo de selección de enemigo (lo usaremos para seleccionar aliados)
+                // Cambiar a ENEMY para que funcione como cartas de ataque
                 if (__instance.target == AbstractCard.CardTarget.SELF) {
                     __instance.target = AbstractCard.CardTarget.ENEMY;
+                    logger.debug("Cambiando target de " + __instance.name + " a ENEMY");
                 }
             } else if (originalTargets.containsKey(__instance)) {
-                // Restaurar el target original si la carta ya no está en condiciones
-                __instance.target = originalTargets.get(__instance);
-                originalTargets.remove(__instance);
+                // Restaurar el target original si ya no está en la mano
+                if (!AbstractDungeon.player.hand.contains(__instance)) {
+                    __instance.target = originalTargets.get(__instance);
+                    originalTargets.remove(__instance);
+                    logger.debug("Restaurando target original de " + __instance.name);
+                }
+            }
+        }
+    }
+
+    /**
+     * Patch para detectar cuando se usa una carta de defensa en un aliado
+     */
+    @SpirePatch(
+        clz = AbstractPlayer.class,
+        method = "useCard"
+    )
+    public static class UseCardPatch {
+
+        @SpirePrefixPatch
+        public static SpireReturn<Void> Prefix(AbstractPlayer __instance, AbstractCard c, AbstractMonster monster, int energyOnUse) {
+            // Solo procesar cartas de defensa
+            if (!DefenseShareMod.isTogetherInSpireLoaded() ||
+                !DefenseCardDetector.isDefenseCard(c)) {
+                return SpireReturn.Continue();
+            }
+
+            // Si se está usando sobre un monstruo que es realmente un aliado (TiS hace esto)
+            // o si monster es null pero hay un aliado seleccionado
+            if (monster != null || AllyManager.hasAlliesAvailable()) {
+                // Buscar el aliado sobre el que está el mouse
+                AbstractPlayer hoveredAlly = getHoveredAlly();
+                if (hoveredAlly != null) {
+                    logger.info("Carta de defensa " + c.name + " usada en aliado: " + hoveredAlly.name);
+
+                    // Establecer el aliado como objetivo para el GainBlockPatch
+                    defenseshare.patches.GainBlockPatch.setTargetAlly(hoveredAlly);
+                }
+            }
+
+            return SpireReturn.Continue();
+        }
+
+        @SpirePostfixPatch
+        public static void Postfix(AbstractPlayer __instance, AbstractCard c, AbstractMonster monster, int energyOnUse) {
+            // Limpiar el target original después de usar la carta
+            if (originalTargets.containsKey(c)) {
+                originalTargets.remove(c);
             }
         }
     }
@@ -80,54 +129,6 @@ public class CardTargetingPatch {
             }
         }
         return null;
-    }
-
-    /**
-     * Patch para interceptar el uso de cartas de defensa y establecer el aliado objetivo
-     */
-    @SpirePatch(
-        clz = AbstractPlayer.class,
-        method = "useCard"
-    )
-    public static class UseCardPatch {
-
-        @SpirePrefixPatch
-        public static SpireReturn<Void> Prefix(AbstractPlayer __instance, AbstractCard c, AbstractMonster monster, int energyOnUse) {
-            // Solo procesar cartas de defensa
-            if (!DefenseShareMod.isTogetherInSpireLoaded() ||
-                !DefenseCardDetector.isDefenseCard(c) ||
-                !AllyManager.hasAlliesAvailable()) {
-                return SpireReturn.Continue();
-            }
-
-            // Verificar si se está usando la carta sobre un aliado
-            AbstractPlayer hoveredAlly = getHoveredAlly();
-            if (hoveredAlly != null && monster == null) {
-                logger.info("Usando carta de defensa " + c.name + " en aliado: " + hoveredAlly.name);
-
-                // Establecer el aliado como objetivo para GainBlockPatch
-                defenseshare.patches.GainBlockPatch.setTargetAlly(hoveredAlly);
-            }
-
-            // Restaurar el target original de la carta después de usarla
-            if (originalTargets.containsKey(c)) {
-                AbstractCard.CardTarget originalTarget = originalTargets.get(c);
-                // Programar la restauración para después de que se use la carta
-                // (esto se hará en el próximo update)
-            }
-
-            // Continuar con el uso normal de la carta
-            // El GainBlockPatch redirigirá el block si hay un aliado objetivo establecido
-            return SpireReturn.Continue();
-        }
-
-        @SpirePostfixPatch
-        public static void Postfix(AbstractPlayer __instance, AbstractCard c, AbstractMonster monster, int energyOnUse) {
-            // Limpiar el mapa de targets originales después de usar la carta
-            if (originalTargets.containsKey(c)) {
-                originalTargets.remove(c);
-            }
-        }
     }
 
     /**

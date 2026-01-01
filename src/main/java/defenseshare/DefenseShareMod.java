@@ -92,9 +92,9 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
 
     @Override
     public void receivePostUpdate() {
-        // Este método ya no es necesario con el nuevo sistema de targeting
-        // Las cartas de defensa ahora se comportan como cartas de ataque
-        // y permiten seleccionar aliados directamente
+        // El sistema de targeting ahora funciona automáticamente
+        // Las cartas de defensa cambian su target a ENEMY cuando hay aliados
+        // y funcionan igual que las cartas de ataque
     }
 
     // === Getters estáticos para otros componentes ===
