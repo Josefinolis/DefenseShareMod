@@ -41,7 +41,15 @@ public class CardTargetingPatch {
 
         @SpirePostfixPatch
         public static void Postfix(AbstractCard __instance) {
+            // DEBUG: Log cada vez que se ejecuta el patch
+            if (__instance.name.contains("Defend")) {
+                logger.info("[DEBUG] UpdateTargetPatch ejecutado para: " + __instance.name);
+            }
+
             if (!DefenseShareMod.isTogetherInSpireLoaded()) {
+                if (__instance.name.contains("Defend")) {
+                    logger.info("[DEBUG] Together in Spire NO está cargado");
+                }
                 return;
             }
 
@@ -50,28 +58,35 @@ public class CardTargetingPatch {
                 return;
             }
 
+            boolean isDefense = DefenseCardDetector.isDefenseCard(__instance);
+            boolean hasAllies = AllyManager.hasAlliesAvailable();
+            boolean inHand = AbstractDungeon.player.hand.contains(__instance);
+
+            // DEBUG: Log para cartas de defensa
+            if (__instance.name.contains("Defend")) {
+                logger.info("[DEBUG] " + __instance.name + " - isDefense: " + isDefense + ", hasAllies: " + hasAllies + ", inHand: " + inHand);
+            }
+
             // Solo modificar cartas de defensa que están en la mano
-            if (DefenseCardDetector.isDefenseCard(__instance) &&
-                AllyManager.hasAlliesAvailable() &&
-                AbstractDungeon.player.hand.contains(__instance)) {
+            if (isDefense && hasAllies && inHand) {
 
                 // Guardar el target original
                 if (!originalTargets.containsKey(__instance)) {
                     originalTargets.put(__instance, __instance.target);
-                    logger.debug("Guardando target original de " + __instance.name + ": " + __instance.target);
+                    logger.info("[DEBUG] Guardando target original de " + __instance.name + ": " + __instance.target);
                 }
 
                 // Cambiar a ENEMY para que funcione como cartas de ataque
                 if (__instance.target == AbstractCard.CardTarget.SELF) {
                     __instance.target = AbstractCard.CardTarget.ENEMY;
-                    logger.debug("Cambiando target de " + __instance.name + " a ENEMY");
+                    logger.info("[DEBUG] ★★★ Cambiando target de " + __instance.name + " a ENEMY ★★★");
                 }
             } else if (originalTargets.containsKey(__instance)) {
                 // Restaurar el target original si ya no está en la mano
                 if (!AbstractDungeon.player.hand.contains(__instance)) {
                     __instance.target = originalTargets.get(__instance);
                     originalTargets.remove(__instance);
-                    logger.debug("Restaurando target original de " + __instance.name);
+                    logger.info("[DEBUG] Restaurando target original de " + __instance.name);
                 }
             }
         }

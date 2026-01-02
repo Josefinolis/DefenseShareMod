@@ -127,7 +127,9 @@ public class AllyManager {
      */
     public static boolean hasAlliesAvailable() {
         updateAlliesList();
-        return !availableAllies.isEmpty();
+        boolean result = !availableAllies.isEmpty();
+        logger.info("[DEBUG] hasAlliesAvailable() = " + result + " (aliados: " + availableAllies.size() + ")");
+        return result;
     }
 
     /**
@@ -137,8 +139,11 @@ public class AllyManager {
         availableAllies.clear();
 
         if (!tisDetected) {
+            logger.info("[DEBUG] Together in Spire NO detectado en AllyManager");
             return;
         }
+
+        logger.info("[DEBUG] Together in Spire detectado, buscando aliados...");
 
         try {
             // Intentar obtener la lista de jugadores de TiS
