@@ -34,7 +34,7 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
 
     public DefenseShareMod() {
         logger.info("===========================================");
-        logger.info("=== Defense Share Mod v1.4.0 FIXED ===");
+        logger.info("=== Defense Share Mod v1.5.0 DEBUG AVANZADO ===");
         logger.info("===========================================");
         BaseMod.subscribe(this);
     }

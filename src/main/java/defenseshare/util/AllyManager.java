@@ -146,9 +146,25 @@ public class AllyManager {
 
         logger.info("[DEBUG] Together in Spire detectado, buscando aliados...");
 
+        // DEBUG: Listar todos los campos de la clase
+        if (tisClass != null) {
+            logger.info("[DEBUG] Campos disponibles en " + tisClass.getName() + ":");
+            for (Field field : tisClass.getDeclaredFields()) {
+                logger.info("[DEBUG]   - " + field.getName() + " : " + field.getType().getName());
+            }
+            logger.info("[DEBUG] Métodos disponibles:");
+            for (Method method : tisClass.getDeclaredMethods()) {
+                if (method.getName().toLowerCase().contains("player") ||
+                    method.getName().toLowerCase().contains("ally") ||
+                    method.getName().toLowerCase().contains("remote")) {
+                    logger.info("[DEBUG]   - " + method.getName() + "()");
+                }
+            }
+        }
+
         try {
             // Intentar obtener la lista de jugadores de TiS
-            String[] fieldNames = {"players", "otherPlayers", "allies", "connectedPlayers", "coopPlayers"};
+            String[] fieldNames = {"players", "otherPlayers", "allies", "connectedPlayers", "coopPlayers", "remotePlayers", "remotes"};
 
             for (String fieldName : fieldNames) {
                 try {
