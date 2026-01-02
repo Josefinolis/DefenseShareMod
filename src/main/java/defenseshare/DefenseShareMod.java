@@ -3,14 +3,15 @@ package defenseshare;
 import basemod.BaseMod;
 import basemod.interfaces.PostInitializeSubscriber;
 import basemod.interfaces.OnCardUseSubscriber;
-import basemod.interfaces.PostUpdateSubscriber;
+import basemod.interfaces.OnStartBattleSubscriber;
+import basemod.interfaces.PostBattleSubscriber;
+import basemod.interfaces.StartGameSubscriber;
+import basemod.interfaces.PostDrawSubscriber;
 import com.evacipated.cardcrawl.modthespire.lib.SpireInitializer;
 import com.megacrit.cardcrawl.cards.AbstractCard;
-import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.actions.common.GainBlockAction;
-import com.megacrit.cardcrawl.core.AbstractCreature;
-import com.megacrit.cardcrawl.core.Settings;
+import com.megacrit.cardcrawl.rooms.AbstractRoom;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,25 +23,31 @@ import defenseshare.util.DefenseCardDetector;
  *
  * Permite que las cartas de defensa (Block) puedan ser lanzadas
  * sobre aliados en partidas cooperativas de Together in Spire.
+ *
+ * OPTIMIZADO: Sin reflection en runtime, sin logging excesivo
  */
 @SpireInitializer
-public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubscriber, PostUpdateSubscriber {
+public class DefenseShareMod implements
+        PostInitializeSubscriber,
+        OnCardUseSubscriber,
+        OnStartBattleSubscriber,
+        PostBattleSubscriber,
+        StartGameSubscriber,
+        PostDrawSubscriber {
 
     public static final Logger logger = LogManager.getLogger(DefenseShareMod.class.getName());
     public static final String MOD_ID = "DefenseShareMod";
+    private static final String VERSION = "1.6.0";
 
     // Estado del mod
     private static boolean togetherInSpireLoaded = false;
 
     public DefenseShareMod() {
-        logger.info("===========================================");
-        logger.info("=== Defense Share Mod v1.5.0 DEBUG AVANZADO ===");
-        logger.info("===========================================");
+        logger.info("Defense Share Mod v" + VERSION + " cargando...");
         BaseMod.subscribe(this);
     }
 
     public static void initialize() {
-        logger.info("Defense Share Mod - initialize()");
         new DefenseShareMod();
     }
 
@@ -48,19 +55,17 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
     public void receivePostInitialize() {
         logger.info("Defense Share Mod - Post Initialize");
 
-        // Detectar si Together in Spire está cargado
+        // Detectar si Together in Spire está cargado (una sola vez)
         togetherInSpireLoaded = detectTogetherInSpire();
 
         if (togetherInSpireLoaded) {
-            logger.info("Together in Spire detectado! El mod de defensa compartida está activo.");
+            logger.info("Together in Spire detectado - mod activo");
         } else {
-            logger.info("Together in Spire no detectado. El mod funcionará cuando TiS esté instalado.");
+            logger.info("Together in Spire no detectado - mod en espera");
         }
 
-        // Inicializar el detector de cartas de defensa
+        // Inicializar componentes
         DefenseCardDetector.initialize();
-
-        // Inicializar el manejador de aliados
         AllyManager.initialize();
     }
 
@@ -68,47 +73,56 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
      * Detecta si Together in Spire está cargado
      */
     private boolean detectTogetherInSpire() {
-        try {
-            // Intentar cargar la clase correcta de Together in Spire
-            Class.forName("spireTogether.SpireTogetherMod");
-            logger.info("Together in Spire detectado correctamente: spireTogether.SpireTogetherMod");
-            return true;
-        } catch (ClassNotFoundException e) {
-            // Intentar con otros posibles nombres de paquete (versiones antiguas)
+        String[] classNames = {
+            "spireTogether.SpireTogetherMod",
+            "togetherinspire.TogetherInSpire",
+            "tis.TogetherInSpire"
+        };
+
+        for (String className : classNames) {
             try {
-                Class.forName("togetherinspire.TogetherInSpire");
-                logger.info("Together in Spire detectado: togetherinspire.TogetherInSpire");
+                Class.forName(className);
                 return true;
-            } catch (ClassNotFoundException e2) {
-                try {
-                    Class.forName("tis.TogetherInSpire");
-                    logger.info("Together in Spire detectado: tis.TogetherInSpire");
-                    return true;
-                } catch (ClassNotFoundException e3) {
-                    logger.info("Together in Spire no detectado");
-                    return false;
-                }
-            }
+            } catch (ClassNotFoundException ignored) {}
         }
+        return false;
+    }
+
+    // === Eventos para invalidar cache ===
+
+    @Override
+    public void receiveOnBattleStart(AbstractRoom room) {
+        // Invalidar cache al inicio de cada combate
+        AllyManager.invalidateCache();
+    }
+
+    @Override
+    public void receivePostBattle(AbstractRoom room) {
+        // Invalidar cache al terminar combate
+        AllyManager.invalidateCache();
+    }
+
+    @Override
+    public void receiveStartGame() {
+        // Invalidar cache al iniciar partida
+        AllyManager.invalidateCache();
+    }
+
+    @Override
+    public void receivePostDraw(AbstractCard card) {
+        // Invalidar cache cuando se roba una carta (por si cambió el estado de aliados)
+        AllyManager.invalidateCache();
     }
 
     @Override
     public void receiveCardUsed(AbstractCard card) {
-        // Limpiar el aliado objetivo después de usar cualquier carta de defensa
+        // Limpiar estado después de usar carta de defensa
         if (DefenseCardDetector.isDefenseCard(card)) {
             defenseshare.patches.GainBlockPatch.clearTargetAlly();
-            logger.debug("Carta de defensa usada, limpiando estado");
         }
     }
 
-    @Override
-    public void receivePostUpdate() {
-        // El sistema de targeting ahora funciona automáticamente
-        // Las cartas de defensa cambian su target a ENEMY cuando hay aliados
-        // y funcionan igual que las cartas de ataque
-    }
-
-    // === Getters estáticos para otros componentes ===
+    // === Getters estáticos ===
 
     public static boolean isTogetherInSpireLoaded() {
         return togetherInSpireLoaded;

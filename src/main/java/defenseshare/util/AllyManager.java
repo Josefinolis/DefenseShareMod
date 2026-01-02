@@ -1,13 +1,10 @@
 package defenseshare.util;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
-import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.helpers.Hitbox;
 import com.megacrit.cardcrawl.helpers.input.InputHelper;
 
 import org.apache.logging.log4j.LogManager;
@@ -16,11 +13,16 @@ import org.apache.logging.log4j.Logger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manejador de aliados para Together in Spire
  * Detecta y permite seleccionar aliados en partidas cooperativas
+ *
+ * OPTIMIZADO: Sin reflection en tiempo de ejecución, solo caching
  */
 public class AllyManager {
 
@@ -28,14 +30,21 @@ public class AllyManager {
 
     // Estado de la selección
     private static boolean isSelecting = false;
-    private static List<AbstractPlayer> availableAllies = new ArrayList<>();
     private static AbstractPlayer selectedAlly = null;
     private static AbstractPlayer hoveredAlly = null;
 
-    // Referencia a la clase de Together in Spire (cargada dinámicamente)
-    private static Class<?> tisClass = null;
-    private static Object tisInstance = null;
+    // Cache de aliados - se actualiza solo en eventos específicos
+    private static List<AbstractPlayer> cachedAllies = new ArrayList<>();
+    private static boolean cacheValid = false;
+
+    // Detección de Together in Spire (se hace UNA vez al inicio)
     private static boolean tisDetected = false;
+    private static boolean tisInitialized = false;
+
+    // Accessors pre-compilados para evitar reflection en runtime
+    private static Field allCharacterEntitiesField = null;
+    private static Method getPlayersMethod = null;
+    private static boolean accessorsInitialized = false;
 
     // Configuración visual
     private static final Color HIGHLIGHT_COLOR = new Color(0.3f, 0.8f, 1.0f, 0.5f);
@@ -43,201 +52,155 @@ public class AllyManager {
 
     public static void initialize() {
         logger.info("Inicializando AllyManager...");
-        detectTogetherInSpire();
+        initializeAccessors();
     }
 
     /**
-     * Detecta e inicializa la conexión con Together in Spire
+     * Inicializa los accessors UNA SOLA VEZ para evitar reflection repetida
      */
-    private static void detectTogetherInSpire() {
-        String[] possibleClassNames = {
-            "spireTogether.SpireTogetherMod",           // Nombre correcto actual
-            "togetherinspire.TogetherInSpire",
-            "tis.TogetherInSpire",
-            "togetherinspire.TIS",
-            "com.togetherinspire.TogetherInSpire"
-        };
+    private static void initializeAccessors() {
+        if (accessorsInitialized) {
+            return;
+        }
+        accessorsInitialized = true;
 
-        for (String className : possibleClassNames) {
+        try {
+            Class<?> tisClass = Class.forName("spireTogether.SpireTogetherMod");
+            tisDetected = true;
+            tisInitialized = true;
+            logger.info("Together in Spire detectado");
+
+            // Pre-cargar el Field de allCharacterEntities
             try {
-                tisClass = Class.forName(className);
-                tisDetected = true;
-                logger.info("Together in Spire detectado: " + className);
-
-                // Intentar obtener la instancia singleton si existe
-                try {
-                    Field instanceField = tisClass.getDeclaredField("instance");
-                    instanceField.setAccessible(true);
-                    tisInstance = instanceField.get(null);
-                } catch (Exception e) {
-                    logger.debug("No se encontró campo instance en TiS");
+                allCharacterEntitiesField = tisClass.getDeclaredField("allCharacterEntities");
+                allCharacterEntitiesField.setAccessible(true);
+                logger.info("Campo allCharacterEntities encontrado");
+            } catch (NoSuchFieldException e) {
+                // Intentar con otros nombres de campo conocidos
+                String[] fieldNames = {"players", "remotePlayers", "otherPlayers"};
+                for (String name : fieldNames) {
+                    try {
+                        allCharacterEntitiesField = tisClass.getDeclaredField(name);
+                        allCharacterEntitiesField.setAccessible(true);
+                        logger.info("Campo " + name + " encontrado");
+                        break;
+                    } catch (NoSuchFieldException ignored) {}
                 }
-
-                break;
-            } catch (ClassNotFoundException e) {
-                // Continuar buscando
             }
-        }
 
-        if (!tisDetected) {
-            logger.info("Together in Spire no encontrado - el mod funcionará cuando esté instalado");
+            // Pre-cargar método getter si existe
+            try {
+                getPlayersMethod = tisClass.getMethod("getPlayers");
+                logger.info("Método getPlayers encontrado");
+            } catch (NoSuchMethodException ignored) {}
+
+        } catch (ClassNotFoundException e) {
+            tisDetected = false;
+            tisInitialized = true;
+            logger.info("Together in Spire no encontrado");
         }
     }
 
     /**
-     * Verifica si estamos en una partida cooperativa
+     * Verifica si hay aliados disponibles (usa cache)
      */
-    public static boolean isInCoopGame() {
+    public static boolean hasAlliesAvailable() {
         if (!tisDetected) {
             return false;
         }
 
-        try {
-            // Intentar llamar al método que indica si estamos en coop
-            String[] methodNames = {"isInMultiplayer", "isCoopActive", "isInGame", "isConnected"};
-
-            for (String methodName : methodNames) {
-                try {
-                    Method method = tisClass.getMethod(methodName);
-                    Object result = method.invoke(tisInstance);
-                    if (result instanceof Boolean && (Boolean) result) {
-                        return true;
-                    }
-                } catch (NoSuchMethodException e) {
-                    // Probar siguiente método
-                }
-            }
-        } catch (Exception e) {
-            logger.debug("Error verificando estado coop: " + e.getMessage());
+        // Usar cache si es válido
+        if (cacheValid) {
+            return !cachedAllies.isEmpty();
         }
 
-        // Fallback: verificar si hay más de un jugador de alguna manera
-        return checkForMultiplePlayers();
+        // Actualizar cache solo si es necesario
+        refreshAlliesCache();
+        return !cachedAllies.isEmpty();
     }
 
     /**
-     * Verifica si hay múltiples jugadores (método alternativo)
+     * Invalida el cache - llamar cuando cambie el estado del juego
      */
-    private static boolean checkForMultiplePlayers() {
-        // Esto es un fallback - intentar detectar otros jugadores de otras formas
-        return availableAllies.size() > 0;
+    public static void invalidateCache() {
+        cacheValid = false;
     }
 
     /**
-     * Verifica si hay aliados disponibles para recibir defensa
+     * Refresca el cache de aliados
+     * Solo debe llamarse en eventos específicos, NO cada frame
      */
-    public static boolean hasAlliesAvailable() {
-        updateAlliesList();
-        boolean result = !availableAllies.isEmpty();
-        logger.info("[DEBUG] hasAlliesAvailable() = " + result + " (aliados: " + availableAllies.size() + ")");
-        return result;
-    }
+    public static void refreshAlliesCache() {
+        cachedAllies.clear();
 
-    /**
-     * Actualiza la lista de aliados disponibles desde Together in Spire
-     */
-    private static void updateAlliesList() {
-        availableAllies.clear();
-
-        if (!tisDetected) {
-            logger.info("[DEBUG] Together in Spire NO detectado en AllyManager");
+        if (!tisDetected || AbstractDungeon.player == null) {
+            cacheValid = true;
             return;
         }
 
-        logger.info("[DEBUG] Together in Spire detectado, buscando aliados...");
-
-        // DEBUG: Listar todos los campos de la clase
-        if (tisClass != null) {
-            logger.info("[DEBUG] Campos disponibles en " + tisClass.getName() + ":");
-            for (Field field : tisClass.getDeclaredFields()) {
-                logger.info("[DEBUG]   - " + field.getName() + " : " + field.getType().getName());
-            }
-            logger.info("[DEBUG] Métodos disponibles:");
-            for (Method method : tisClass.getDeclaredMethods()) {
-                if (method.getName().toLowerCase().contains("player") ||
-                    method.getName().toLowerCase().contains("ally") ||
-                    method.getName().toLowerCase().contains("remote")) {
-                    logger.info("[DEBUG]   - " + method.getName() + "()");
-                }
-            }
-        }
-
         try {
-            // Intentar obtener la lista de jugadores de TiS
-            String[] fieldNames = {"players", "otherPlayers", "allies", "connectedPlayers", "coopPlayers", "remotePlayers", "remotes"};
-
-            for (String fieldName : fieldNames) {
-                try {
-                    Field field = tisClass.getDeclaredField(fieldName);
-                    field.setAccessible(true);
-                    Object playersObj = field.get(tisInstance);
-
-                    if (playersObj instanceof List<?>) {
-                        List<?> players = (List<?>) playersObj;
-                        for (Object player : players) {
-                            if (player instanceof AbstractPlayer) {
-                                AbstractPlayer p = (AbstractPlayer) player;
-                                // No incluir al jugador actual
-                                if (p != AbstractDungeon.player && p.currentHealth > 0) {
-                                    availableAllies.add(p);
-                                }
-                            }
-                        }
-                        if (!availableAllies.isEmpty()) {
-                            break;
-                        }
-                    }
-                } catch (NoSuchFieldException e) {
-                    // Probar siguiente campo
-                }
+            // Método 1: Usar el campo pre-cargado
+            if (allCharacterEntitiesField != null) {
+                Object value = allCharacterEntitiesField.get(null);
+                extractPlayersFromObject(value);
             }
 
-            // Método alternativo: buscar mediante métodos getter
-            if (availableAllies.isEmpty()) {
-                String[] methodNames = {"getPlayers", "getOtherPlayers", "getAllies", "getConnectedPlayers"};
-
-                for (String methodName : methodNames) {
-                    try {
-                        Method method = tisClass.getMethod(methodName);
-                        Object result = method.invoke(tisInstance);
-
-                        if (result instanceof List<?>) {
-                            List<?> players = (List<?>) result;
-                            for (Object player : players) {
-                                if (player instanceof AbstractPlayer) {
-                                    AbstractPlayer p = (AbstractPlayer) player;
-                                    if (p != AbstractDungeon.player && p.currentHealth > 0) {
-                                        availableAllies.add(p);
-                                    }
-                                }
-                            }
-                            if (!availableAllies.isEmpty()) {
-                                break;
-                            }
-                        }
-                    } catch (NoSuchMethodException e) {
-                        // Probar siguiente método
-                    }
-                }
+            // Método 2: Usar el método pre-cargado si no encontramos aliados
+            if (cachedAllies.isEmpty() && getPlayersMethod != null) {
+                Object result = getPlayersMethod.invoke(null);
+                extractPlayersFromObject(result);
             }
 
         } catch (Exception e) {
-            logger.error("Error obteniendo lista de aliados: " + e.getMessage());
+            // Silenciar errores en producción
         }
 
-        logger.debug("Aliados disponibles: " + availableAllies.size());
+        cacheValid = true;
+    }
+
+    /**
+     * Extrae jugadores de un objeto (HashMap o List)
+     */
+    @SuppressWarnings("unchecked")
+    private static void extractPlayersFromObject(Object obj) {
+        if (obj == null) return;
+
+        try {
+            if (obj instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) obj;
+                for (Object value : map.values()) {
+                    addPlayerIfValid(value);
+                }
+            } else if (obj instanceof List) {
+                List<?> list = (List<?>) obj;
+                for (Object item : list) {
+                    addPlayerIfValid(item);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Añade un jugador a la lista si es válido y no es el jugador actual
+     */
+    private static void addPlayerIfValid(Object obj) {
+        if (obj instanceof AbstractPlayer) {
+            AbstractPlayer p = (AbstractPlayer) obj;
+            if (p != AbstractDungeon.player && p.currentHealth > 0) {
+                cachedAllies.add(p);
+            }
+        }
     }
 
     /**
      * Inicia el modo de selección de aliado
      */
     public static void startAllySelection() {
-        updateAlliesList();
-        if (!availableAllies.isEmpty()) {
+        refreshAlliesCache();
+        if (!cachedAllies.isEmpty()) {
             isSelecting = true;
             selectedAlly = null;
             hoveredAlly = null;
-            logger.info("Iniciando selección de aliado. Aliados disponibles: " + availableAllies.size());
         }
     }
 
@@ -252,51 +215,41 @@ public class AllyManager {
 
     /**
      * Actualiza la selección de aliado basada en input del ratón
-     * Retorna true si se seleccionó un aliado
      */
     public static boolean updateAllySelection() {
-        if (!isSelecting || availableAllies.isEmpty()) {
+        if (!isSelecting || cachedAllies.isEmpty()) {
             return false;
         }
 
         hoveredAlly = null;
-
-        // Detectar sobre qué aliado está el ratón
         float mouseX = InputHelper.mX;
         float mouseY = InputHelper.mY;
 
-        for (AbstractPlayer ally : availableAllies) {
+        for (AbstractPlayer ally : cachedAllies) {
             if (ally.hb != null && ally.hb.hovered) {
                 hoveredAlly = ally;
                 break;
             }
 
-            // Verificación alternativa de posición
-            float allyX = ally.drawX;
-            float allyY = ally.drawY;
+            // Verificación alternativa
             float hitboxWidth = 150 * Settings.scale;
             float hitboxHeight = 200 * Settings.scale;
 
-            if (mouseX >= allyX - hitboxWidth / 2 && mouseX <= allyX + hitboxWidth / 2 &&
-                mouseY >= allyY - hitboxHeight / 2 && mouseY <= allyY + hitboxHeight / 2) {
+            if (mouseX >= ally.drawX - hitboxWidth / 2 && mouseX <= ally.drawX + hitboxWidth / 2 &&
+                mouseY >= ally.drawY - hitboxHeight / 2 && mouseY <= ally.drawY + hitboxHeight / 2) {
                 hoveredAlly = ally;
                 break;
             }
         }
 
-        // Click para seleccionar
         if (hoveredAlly != null && InputHelper.justClickedLeft) {
             selectedAlly = hoveredAlly;
-            logger.info("Aliado seleccionado: " + selectedAlly.name);
-            InputHelper.justClickedLeft = false; // Consumir el click
+            InputHelper.justClickedLeft = false;
             return true;
         }
 
-        // Click derecho o Escape para cancelar
-        if (InputHelper.justClickedRight || Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.ESCAPE)) {
-            logger.info("Selección de aliado cancelada");
+        if (InputHelper.justClickedRight) {
             endAllySelection();
-            selectedAlly = null;
             return false;
         }
 
@@ -304,7 +257,7 @@ public class AllyManager {
     }
 
     /**
-     * Obtiene el aliado seleccionado (null si no hay ninguno)
+     * Obtiene el aliado seleccionado
      */
     public static AbstractPlayer getSelectedAlly() {
         return selectedAlly;
@@ -318,10 +271,13 @@ public class AllyManager {
     }
 
     /**
-     * Lista de todos los aliados disponibles
+     * Lista de todos los aliados disponibles (copia defensiva)
      */
     public static List<AbstractPlayer> getAvailableAllies() {
-        return new ArrayList<>(availableAllies);
+        if (!cacheValid) {
+            refreshAlliesCache();
+        }
+        return new ArrayList<>(cachedAllies);
     }
 
     /**
@@ -332,26 +288,27 @@ public class AllyManager {
     }
 
     /**
-     * Renderiza indicadores visuales sobre los aliados seleccionables
+     * Verifica si Together in Spire está detectado
+     */
+    public static boolean isTogetherInSpireDetected() {
+        if (!tisInitialized) {
+            initializeAccessors();
+        }
+        return tisDetected;
+    }
+
+    /**
+     * Renderiza indicadores visuales sobre los aliados
      */
     public static void render(SpriteBatch sb) {
-        if (!isSelecting || availableAllies.isEmpty()) {
+        if (!isSelecting || cachedAllies.isEmpty()) {
             return;
         }
 
-        // Dibujar highlight sobre aliados disponibles
-        for (AbstractPlayer ally : availableAllies) {
+        for (AbstractPlayer ally : cachedAllies) {
             Color color = (ally == hoveredAlly) ? SELECTED_COLOR : HIGHLIGHT_COLOR;
-
-            // Aquí se dibujaría un indicador visual
-            // El renderizado específico depende de cómo Together in Spire
-            // renderiza a los otros jugadores
-
-            // Por ahora, usamos el hitbox del jugador para mostrar un outline
             if (ally.hb != null) {
-                // Render básico de hitbox highlight
                 sb.setColor(color);
-                // El renderizado específico se implementaría aquí
             }
         }
     }
