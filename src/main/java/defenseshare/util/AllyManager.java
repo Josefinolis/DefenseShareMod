@@ -142,6 +142,15 @@ public class AllyManager {
             // Método 1: Usar el campo pre-cargado
             if (allCharacterEntitiesField != null) {
                 Object value = allCharacterEntitiesField.get(null);
+                logger.info("allCharacterEntities tipo: " + (value != null ? value.getClass().getName() : "null"));
+                if (value instanceof Map) {
+                    Map<?, ?> map = (Map<?, ?>) value;
+                    logger.info("allCharacterEntities size: " + map.size());
+                    for (Map.Entry<?, ?> entry : map.entrySet()) {
+                        logger.info("  Key: " + entry.getKey() + " -> Value type: " +
+                            (entry.getValue() != null ? entry.getValue().getClass().getName() : "null"));
+                    }
+                }
                 extractPlayersFromObject(value);
             }
 
@@ -152,9 +161,10 @@ public class AllyManager {
             }
 
         } catch (Exception e) {
-            // Silenciar errores en producción
+            logger.error("Error refrescando cache: " + e.getMessage());
         }
 
+        logger.info("Cache refrescado. Aliados encontrados: " + cachedAllies.size());
         cacheValid = true;
     }
 
