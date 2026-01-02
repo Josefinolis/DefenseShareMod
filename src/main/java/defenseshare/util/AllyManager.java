@@ -51,6 +51,7 @@ public class AllyManager {
      */
     private static void detectTogetherInSpire() {
         String[] possibleClassNames = {
+            "spireTogether.SpireTogetherMod",           // Nombre correcto actual
             "togetherinspire.TogetherInSpire",
             "tis.TogetherInSpire",
             "togetherinspire.TIS",

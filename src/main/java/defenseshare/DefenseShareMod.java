@@ -34,7 +34,7 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
 
     public DefenseShareMod() {
         logger.info("===========================================");
-        logger.info("=== Defense Share Mod v1.3.0 DEBUG ===");
+        logger.info("=== Defense Share Mod v1.4.0 FIXED ===");
         logger.info("===========================================");
         BaseMod.subscribe(this);
     }
@@ -69,16 +69,25 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
      */
     private boolean detectTogetherInSpire() {
         try {
-            // Intentar cargar una clase de Together in Spire
-            Class.forName("togetherinspire.TogetherInSpire");
+            // Intentar cargar la clase correcta de Together in Spire
+            Class.forName("spireTogether.SpireTogetherMod");
+            logger.info("Together in Spire detectado correctamente: spireTogether.SpireTogetherMod");
             return true;
         } catch (ClassNotFoundException e) {
-            // Intentar con otros posibles nombres de paquete
+            // Intentar con otros posibles nombres de paquete (versiones antiguas)
             try {
-                Class.forName("tis.TogetherInSpire");
+                Class.forName("togetherinspire.TogetherInSpire");
+                logger.info("Together in Spire detectado: togetherinspire.TogetherInSpire");
                 return true;
             } catch (ClassNotFoundException e2) {
-                return false;
+                try {
+                    Class.forName("tis.TogetherInSpire");
+                    logger.info("Together in Spire detectado: tis.TogetherInSpire");
+                    return true;
+                } catch (ClassNotFoundException e3) {
+                    logger.info("Together in Spire no detectado");
+                    return false;
+                }
             }
         }
     }
