@@ -92,31 +92,14 @@ public class RenderPatch {
             }
 
             // Verificar si el jugador tiene una carta de defensa en la mano
-            // (El nuevo sistema de targeting hará que las cartas cambien a modo ENEMY)
             if (AbstractDungeon.player != null && AbstractDungeon.player.hand != null) {
                 for (AbstractCard card : AbstractDungeon.player.hand.group) {
                     if (DefenseCardDetector.isDefenseCard(card) && card.isGlowing) {
-                        // Renderizar highlight sobre aliados
                         AllyManager.render(sb);
-                        renderSelectionInstructions(sb);
                         break;
                     }
                 }
             }
-        }
-
-        private static void renderSelectionInstructions(SpriteBatch sb) {
-            float x = Settings.WIDTH / 2.0f;
-            float y = Settings.HEIGHT - (100 * Settings.scale);
-
-            FontHelper.renderFontCentered(
-                sb,
-                FontHelper.buttonLabelFont,
-                "Arrastra la carta sobre un aliado para compartir defensa",
-                x,
-                y,
-                Color.WHITE
-            );
         }
     }
 
