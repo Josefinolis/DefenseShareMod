@@ -37,7 +37,7 @@ public class DefenseShareMod implements
 
     public static final Logger logger = LogManager.getLogger(DefenseShareMod.class.getName());
     public static final String MOD_ID = "DefenseShareMod";
-    private static final String VERSION = "1.6.0";
+    private static final String VERSION = "1.5.1";
 
     // Estado del mod
     private static boolean togetherInSpireLoaded = false;
