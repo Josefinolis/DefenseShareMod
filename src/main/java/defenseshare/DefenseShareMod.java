@@ -33,7 +33,9 @@ public class DefenseShareMod implements PostInitializeSubscriber, OnCardUseSubsc
     private static boolean togetherInSpireLoaded = false;
 
     public DefenseShareMod() {
-        logger.info("=== Inicializando Defense Share Mod ===");
+        logger.info("===========================================");
+        logger.info("=== Defense Share Mod v1.2.0 - NUEVA VERSION ===");
+        logger.info("===========================================");
         BaseMod.subscribe(this);
     }
 
