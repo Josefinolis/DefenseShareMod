@@ -2,7 +2,6 @@ package defenseshare.patches;
 
 import com.evacipated.cardcrawl.modthespire.lib.*;
 import com.megacrit.cardcrawl.actions.common.GainBlockAction;
-import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 
@@ -16,15 +15,13 @@ import java.lang.reflect.Field;
 /**
  * Patch para interceptar y modificar GainBlockAction
  * Permite redirigir el block a aliados cuando sea necesario
- *
- * OPTIMIZADO: Field pre-cargado para evitar reflection repetida
  */
 public class GainBlockPatch {
 
     private static final Logger logger = LogManager.getLogger(GainBlockPatch.class.getName());
 
     // Variable para rastrear si el próximo GainBlockAction debe ir a un aliado
-    private static AbstractPlayer targetAllyForNextBlock = null;
+    private static AbstractCreature targetAllyForNextBlock = null;
 
     // Field pre-cargado para evitar reflection en cada uso
     private static Field targetField = null;
@@ -48,7 +45,7 @@ public class GainBlockPatch {
     /**
      * Establece el aliado que debe recibir el próximo block
      */
-    public static void setTargetAlly(AbstractPlayer ally) {
+    public static void setTargetAlly(AbstractCreature ally) {
         targetAllyForNextBlock = ally;
     }
 

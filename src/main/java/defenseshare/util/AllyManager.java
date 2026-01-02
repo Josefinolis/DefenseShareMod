@@ -3,9 +3,11 @@ package defenseshare.util;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
+import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.input.InputHelper;
+import com.megacrit.cardcrawl.monsters.AbstractMonster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,16 +15,12 @@ import org.apache.logging.log4j.Logger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Manejador de aliados para Together in Spire
  * Detecta y permite seleccionar aliados en partidas cooperativas
- *
- * OPTIMIZADO: Sin reflection en tiempo de ejecución, solo caching
  */
 public class AllyManager {
 
@@ -30,18 +28,18 @@ public class AllyManager {
 
     // Estado de la selección
     private static boolean isSelecting = false;
-    private static AbstractPlayer selectedAlly = null;
-    private static AbstractPlayer hoveredAlly = null;
+    private static AbstractCreature selectedAlly = null;
+    private static AbstractCreature hoveredAlly = null;
 
-    // Cache de aliados - se actualiza solo en eventos específicos
-    private static List<AbstractPlayer> cachedAllies = new ArrayList<>();
+    // Cache de aliados - usa AbstractCreature para soportar Network* de TiS
+    private static List<AbstractCreature> cachedAllies = new ArrayList<>();
     private static boolean cacheValid = false;
 
-    // Detección de Together in Spire (se hace UNA vez al inicio)
+    // Detección de Together in Spire
     private static boolean tisDetected = false;
     private static boolean tisInitialized = false;
 
-    // Accessors pre-compilados para evitar reflection en runtime
+    // Accessors pre-compilados
     private static Field allCharacterEntitiesField = null;
     private static Method getPlayersMethod = null;
     private static boolean accessorsInitialized = false;
@@ -55,13 +53,8 @@ public class AllyManager {
         initializeAccessors();
     }
 
-    /**
-     * Inicializa los accessors UNA SOLA VEZ para evitar reflection repetida
-     */
     private static void initializeAccessors() {
-        if (accessorsInitialized) {
-            return;
-        }
+        if (accessorsInitialized) return;
         accessorsInitialized = true;
 
         try {
@@ -70,13 +63,11 @@ public class AllyManager {
             tisInitialized = true;
             logger.info("Together in Spire detectado");
 
-            // Pre-cargar el Field de allCharacterEntities
             try {
                 allCharacterEntitiesField = tisClass.getDeclaredField("allCharacterEntities");
                 allCharacterEntitiesField.setAccessible(true);
                 logger.info("Campo allCharacterEntities encontrado");
             } catch (NoSuchFieldException e) {
-                // Intentar con otros nombres de campo conocidos
                 String[] fieldNames = {"players", "remotePlayers", "otherPlayers"};
                 for (String name : fieldNames) {
                     try {
@@ -88,7 +79,6 @@ public class AllyManager {
                 }
             }
 
-            // Pre-cargar método getter si existe
             try {
                 getPlayersMethod = tisClass.getMethod("getPlayers");
                 logger.info("Método getPlayers encontrado");
@@ -101,35 +91,17 @@ public class AllyManager {
         }
     }
 
-    /**
-     * Verifica si hay aliados disponibles (usa cache)
-     */
     public static boolean hasAlliesAvailable() {
-        if (!tisDetected) {
-            return false;
-        }
-
-        // Usar cache si es válido
-        if (cacheValid) {
-            return !cachedAllies.isEmpty();
-        }
-
-        // Actualizar cache solo si es necesario
+        if (!tisDetected) return false;
+        if (cacheValid) return !cachedAllies.isEmpty();
         refreshAlliesCache();
         return !cachedAllies.isEmpty();
     }
 
-    /**
-     * Invalida el cache - llamar cuando cambie el estado del juego
-     */
     public static void invalidateCache() {
         cacheValid = false;
     }
 
-    /**
-     * Refresca el cache de aliados
-     * Solo debe llamarse en eventos específicos, NO cada frame
-     */
     public static void refreshAlliesCache() {
         cachedAllies.clear();
 
@@ -139,25 +111,30 @@ public class AllyManager {
         }
 
         try {
-            // Método 1: Usar el campo pre-cargado
             if (allCharacterEntitiesField != null) {
                 Object value = allCharacterEntitiesField.get(null);
-                logger.info("allCharacterEntities tipo: " + (value != null ? value.getClass().getName() : "null"));
                 if (value instanceof Map) {
                     Map<?, ?> map = (Map<?, ?>) value;
                     logger.info("allCharacterEntities size: " + map.size());
                     for (Map.Entry<?, ?> entry : map.entrySet()) {
-                        logger.info("  Key: " + entry.getKey() + " -> Value type: " +
-                            (entry.getValue() != null ? entry.getValue().getClass().getName() : "null"));
+                        Object ally = entry.getValue();
+                        if (ally instanceof AbstractCreature) {
+                            AbstractCreature creature = (AbstractCreature) ally;
+                            // Filtrar: no el jugador actual, con vida, y del paquete Network*
+                            if (creature != AbstractDungeon.player &&
+                                creature.currentHealth > 0 &&
+                                isNetworkPlayer(creature)) {
+                                cachedAllies.add(creature);
+                                logger.info("Aliado añadido: " + creature.name + " (" + creature.getClass().getSimpleName() + ")");
+                            }
+                        }
                     }
                 }
-                extractPlayersFromObject(value);
             }
 
-            // Método 2: Usar el método pre-cargado si no encontramos aliados
             if (cachedAllies.isEmpty() && getPlayersMethod != null) {
                 Object result = getPlayersMethod.invoke(null);
-                extractPlayersFromObject(result);
+                extractCreaturesFromObject(result);
             }
 
         } catch (Exception e) {
@@ -169,42 +146,39 @@ public class AllyManager {
     }
 
     /**
-     * Extrae jugadores de un objeto (HashMap o List)
+     * Verifica si una criatura es un jugador de red de TiS
      */
-    @SuppressWarnings("unchecked")
-    private static void extractPlayersFromObject(Object obj) {
-        if (obj == null) return;
+    private static boolean isNetworkPlayer(AbstractCreature creature) {
+        String className = creature.getClass().getName();
+        return className.startsWith("spireTogether.monsters.playerChars.Network");
+    }
 
+    private static void extractCreaturesFromObject(Object obj) {
+        if (obj == null) return;
         try {
             if (obj instanceof Map) {
                 Map<?, ?> map = (Map<?, ?>) obj;
                 for (Object value : map.values()) {
-                    addPlayerIfValid(value);
+                    addCreatureIfValid(value);
                 }
             } else if (obj instanceof List) {
                 List<?> list = (List<?>) obj;
                 for (Object item : list) {
-                    addPlayerIfValid(item);
+                    addCreatureIfValid(item);
                 }
             }
         } catch (Exception ignored) {}
     }
 
-    /**
-     * Añade un jugador a la lista si es válido y no es el jugador actual
-     */
-    private static void addPlayerIfValid(Object obj) {
-        if (obj instanceof AbstractPlayer) {
-            AbstractPlayer p = (AbstractPlayer) obj;
-            if (p != AbstractDungeon.player && p.currentHealth > 0) {
-                cachedAllies.add(p);
+    private static void addCreatureIfValid(Object obj) {
+        if (obj instanceof AbstractCreature) {
+            AbstractCreature c = (AbstractCreature) obj;
+            if (c != AbstractDungeon.player && c.currentHealth > 0 && isNetworkPlayer(c)) {
+                cachedAllies.add(c);
             }
         }
     }
 
-    /**
-     * Inicia el modo de selección de aliado
-     */
     public static void startAllySelection() {
         refreshAlliesCache();
         if (!cachedAllies.isEmpty()) {
@@ -214,34 +188,25 @@ public class AllyManager {
         }
     }
 
-    /**
-     * Finaliza el modo de selección de aliado
-     */
     public static void endAllySelection() {
         isSelecting = false;
         selectedAlly = null;
         hoveredAlly = null;
     }
 
-    /**
-     * Actualiza la selección de aliado basada en input del ratón
-     */
     public static boolean updateAllySelection() {
-        if (!isSelecting || cachedAllies.isEmpty()) {
-            return false;
-        }
+        if (!isSelecting || cachedAllies.isEmpty()) return false;
 
         hoveredAlly = null;
         float mouseX = InputHelper.mX;
         float mouseY = InputHelper.mY;
 
-        for (AbstractPlayer ally : cachedAllies) {
+        for (AbstractCreature ally : cachedAllies) {
             if (ally.hb != null && ally.hb.hovered) {
                 hoveredAlly = ally;
                 break;
             }
 
-            // Verificación alternativa
             float hitboxWidth = 150 * Settings.scale;
             float hitboxHeight = 200 * Settings.scale;
 
@@ -266,56 +231,32 @@ public class AllyManager {
         return false;
     }
 
-    /**
-     * Obtiene el aliado seleccionado
-     */
-    public static AbstractPlayer getSelectedAlly() {
+    public static AbstractCreature getSelectedAlly() {
         return selectedAlly;
     }
 
-    /**
-     * Obtiene el aliado sobre el que está el ratón
-     */
-    public static AbstractPlayer getHoveredAlly() {
+    public static AbstractCreature getHoveredAlly() {
         return hoveredAlly;
     }
 
-    /**
-     * Lista de todos los aliados disponibles (copia defensiva)
-     */
-    public static List<AbstractPlayer> getAvailableAllies() {
-        if (!cacheValid) {
-            refreshAlliesCache();
-        }
+    public static List<AbstractCreature> getAvailableAllies() {
+        if (!cacheValid) refreshAlliesCache();
         return new ArrayList<>(cachedAllies);
     }
 
-    /**
-     * Verifica si está en modo de selección
-     */
     public static boolean isSelectingAlly() {
         return isSelecting;
     }
 
-    /**
-     * Verifica si Together in Spire está detectado
-     */
     public static boolean isTogetherInSpireDetected() {
-        if (!tisInitialized) {
-            initializeAccessors();
-        }
+        if (!tisInitialized) initializeAccessors();
         return tisDetected;
     }
 
-    /**
-     * Renderiza indicadores visuales sobre los aliados
-     */
     public static void render(SpriteBatch sb) {
-        if (!isSelecting || cachedAllies.isEmpty()) {
-            return;
-        }
+        if (!isSelecting || cachedAllies.isEmpty()) return;
 
-        for (AbstractPlayer ally : cachedAllies) {
+        for (AbstractCreature ally : cachedAllies) {
             Color color = (ally == hoveredAlly) ? SELECTED_COLOR : HIGHLIGHT_COLOR;
             if (ally.hb != null) {
                 sb.setColor(color);

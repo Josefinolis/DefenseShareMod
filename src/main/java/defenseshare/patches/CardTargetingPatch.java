@@ -10,6 +10,7 @@ import defenseshare.DefenseShareMod;
 import defenseshare.util.AllyManager;
 import defenseshare.util.DefenseCardDetector;
 
+import com.megacrit.cardcrawl.core.AbstractCreature;
 import javassist.CtBehavior;
 
 import java.util.HashMap;
@@ -100,7 +101,7 @@ public class CardTargetingPatch {
             }
 
             // Buscar el aliado sobre el que está el mouse
-            AbstractPlayer hoveredAlly = getHoveredAlly();
+            AbstractCreature hoveredAlly = getHoveredAlly();
             if (hoveredAlly != null) {
                 defenseshare.patches.GainBlockPatch.setTargetAlly(hoveredAlly);
             }
@@ -117,8 +118,8 @@ public class CardTargetingPatch {
     /**
      * Método auxiliar para detectar si el mouse está sobre un aliado
      */
-    private static AbstractPlayer getHoveredAlly() {
-        for (AbstractPlayer ally : AllyManager.getAvailableAllies()) {
+    private static AbstractCreature getHoveredAlly() {
+        for (AbstractCreature ally : AllyManager.getAvailableAllies()) {
             if (ally.hb != null && ally.hb.hovered) {
                 return ally;
             }
