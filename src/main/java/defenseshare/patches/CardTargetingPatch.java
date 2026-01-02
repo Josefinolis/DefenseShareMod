@@ -1,11 +1,12 @@
 package defenseshare.patches;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.evacipated.cardcrawl.modthespire.lib.*;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.monsters.AbstractMonster;
-import com.megacrit.cardcrawl.core.AbstractCreature;
 
 import defenseshare.DefenseShareMod;
 import defenseshare.util.AllyManager;
@@ -15,19 +16,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Patch para permitir que cartas de defensa se apunten a aliados o a uno mismo.
- * Cambia el target a ENEMY para permitir apuntar, luego:
- * - Si apuntas a un aliado Network*, el block va al aliado
- * - Si apuntas a un enemigo normal, el block va a ti mismo
+ * Patch para permitir que cartas de defensa se apunten a aliados.
+ * Mantener SHIFT activa el modo aliado - las cartas cambian a ENEMY target.
  */
 public class CardTargetingPatch {
 
-    // Mapa para guardar el target original de las cartas
     private static final Map<AbstractCard, AbstractCard.CardTarget> originalTargets = new HashMap<>();
 
     /**
-     * Patch para cambiar el target de cartas de defensa cuando hay aliados
+     * Verifica si el modo aliado está activo (Shift presionado)
      */
+    public static boolean isAllyModeActive() {
+        return Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) ||
+               Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+    }
+
     @SpirePatch(
         clz = AbstractCard.class,
         method = "update"
@@ -46,7 +49,6 @@ public class CardTargetingPatch {
 
             boolean inHand = AbstractDungeon.player.hand.contains(__instance);
             if (!inHand) {
-                // Restaurar target si salió de la mano
                 if (originalTargets.containsKey(__instance)) {
                     __instance.target = originalTargets.remove(__instance);
                 }
@@ -64,20 +66,23 @@ public class CardTargetingPatch {
                 return;
             }
 
-            // Guardar target original y cambiar a ENEMY para poder apuntar
-            if (!originalTargets.containsKey(__instance)) {
-                originalTargets.put(__instance, __instance.target);
-            }
-
-            if (__instance.target == AbstractCard.CardTarget.SELF) {
-                __instance.target = AbstractCard.CardTarget.ENEMY;
+            // Solo cambiar target si Shift está presionado
+            if (isAllyModeActive()) {
+                if (!originalTargets.containsKey(__instance)) {
+                    originalTargets.put(__instance, __instance.target);
+                }
+                if (__instance.target == AbstractCard.CardTarget.SELF) {
+                    __instance.target = AbstractCard.CardTarget.ENEMY;
+                }
+            } else {
+                // Restaurar target original si Shift no está presionado
+                if (originalTargets.containsKey(__instance)) {
+                    __instance.target = originalTargets.remove(__instance);
+                }
             }
         }
     }
 
-    /**
-     * Patch para detectar el objetivo cuando se usa la carta
-     */
     @SpirePatch(
         clz = AbstractPlayer.class,
         method = "useCard"
@@ -91,12 +96,10 @@ public class CardTargetingPatch {
                 return SpireReturn.Continue();
             }
 
-            // Verificar si el monstruo apuntado es realmente un aliado Network*
-            if (monster != null && isNetworkAlly(monster)) {
-                // Redirigir block al aliado
+            // Solo redirigir si está en modo aliado y apunta a un Network*
+            if (isAllyModeActive() && monster != null && isNetworkAlly(monster)) {
                 GainBlockPatch.setTargetAlly(monster);
             }
-            // Si es un enemigo normal o null, el block va al jugador (comportamiento normal)
 
             return SpireReturn.Continue();
         }
@@ -108,9 +111,6 @@ public class CardTargetingPatch {
         }
     }
 
-    /**
-     * Verifica si un monstruo es realmente un aliado Network* de TiS
-     */
     private static boolean isNetworkAlly(AbstractMonster monster) {
         if (monster == null) return false;
         String className = monster.getClass().getName();

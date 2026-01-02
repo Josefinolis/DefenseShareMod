@@ -48,25 +48,26 @@ public class RenderPatch {
                 return;
             }
 
-            // Verificar si la carta puede ser compartida
-            if (DefenseCardDetector.isDefenseCard(__instance) && AllyManager.hasAlliesAvailable()) {
-                // Verificar si la carta está siendo hovereada
-                if (__instance.hb.hovered) {
-                    renderShareIndicator(sb, __instance);
+            // Solo mostrar si es carta de defensa, hay aliados, y Shift está presionado
+            if (DefenseCardDetector.isDefenseCard(__instance) &&
+                AllyManager.hasAlliesAvailable() &&
+                CardTargetingPatch.isAllyModeActive()) {
+
+                // Mostrar en cartas de la mano
+                if (AbstractDungeon.player.hand.contains(__instance)) {
+                    renderAllyIndicator(sb, __instance);
                 }
             }
         }
 
-        private static void renderShareIndicator(SpriteBatch sb, AbstractCard card) {
-            // Renderizar un pequeño indicador de que la carta puede compartirse
-            float x = card.current_x + (card.hb.width / 2) - (30 * Settings.scale);
-            float y = card.current_y + (card.hb.height / 2) + (10 * Settings.scale);
+        private static void renderAllyIndicator(SpriteBatch sb, AbstractCard card) {
+            float x = card.current_x;
+            float y = card.current_y + (card.hb.height / 2) + (30 * Settings.scale);
 
-            // Dibujar texto indicador
             FontHelper.renderFontCentered(
                 sb,
-                FontHelper.cardDescFont_N,
-                "[ALLY]",
+                FontHelper.cardTitleFont,
+                "ALLY",
                 x,
                 y,
                 SHAREABLE_COLOR
