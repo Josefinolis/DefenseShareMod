@@ -42,7 +42,9 @@ public class RenderPatch {
         @SpirePostfixPatch
         public static void Postfix(AbstractCard __instance, SpriteBatch sb) {
             // Solo renderizar si TiS está activo y estamos en combate
+            // Verificar primero si estamos en un dungeon (currMapNode existe)
             if (!DefenseShareMod.isTogetherInSpireLoaded() ||
+                AbstractDungeon.currMapNode == null ||
                 AbstractDungeon.getCurrRoom() == null ||
                 AbstractDungeon.getCurrRoom().phase != AbstractRoom.RoomPhase.COMBAT) {
                 return;
