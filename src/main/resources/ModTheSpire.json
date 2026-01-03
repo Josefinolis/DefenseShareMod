@@ -3,7 +3,7 @@
     "name": "Defense Share - TiS Addon",
     "author_list": ["os_uis"],
     "description": "Permite compartir cartas de defensa con aliados en Together in Spire.",
-    "version": "1.5.6",
+    "version": "1.5.8",
     "sts_version": "12-22-2020",
     "mts_version": "3.23.0",
     "dependencies": ["basemod"],
